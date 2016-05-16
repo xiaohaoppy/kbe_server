@@ -11,7 +11,6 @@ RUN yum install mariadb-devel openssl-devel -y
 
 ADD kbengine /kbengine 
 
-RUN sh /kbengine/kbe/tools/server/linux/socket_optimization.sh
 
 RUN yum clean all 
 
