@@ -8,9 +8,11 @@ set KBE_BIN_PATH=%KBE_ROOT%/kbe/bin/server/
 
 if defined uid (echo UID = %uid%) else set uid=%random%%%32760+1
 
+cd %curpath%
+call "kill_server.bat"
+
 echo KBE_ROOT = %KBE_ROOT%
 echo KBE_RES_PATH = %KBE_RES_PATH%
 echo KBE_BIN_PATH = %KBE_BIN_PATH%
 
-cd %curpath%
-start %KBE_BIN_PATH%/bots.exe
+start %KBE_BIN_PATH%/machine.exe --cid=1000 --gus=1

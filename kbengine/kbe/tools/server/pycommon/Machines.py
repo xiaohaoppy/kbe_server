@@ -23,11 +23,26 @@ class ComponentInfo( object ):
 		"""
 		"""
 		if streamStr:
-			self.initFromStream( streamStr )
+			try:
+				self.initFromStream( streamStr )
+				return
+			except:
+				pass
+			
+			self.init_with_version_before_20160504( streamStr )
 	
-	def initFromStream( self, streamStr ):
+	def init_with_version_before_20160504( self, streamStr ):
 		"""
+		旧版本初始化方案
+		从20160504开始的代码已经不再适合使用些方案更新
+		存在些方案是为了过渡，以避免混用两个版本的服务器时导致工具出错
 		"""
+		self.entities = 0    # KBEngine.Entity或KBEngine.Base数量
+		self.clients = 0     # 客户端数量
+		self.proxies = 0     # KBEngine.Proxy实例数量
+		self.consolePort = 0 # 控制台端口
+		self.genuuid_sections = 0 # --gus
+		
 		i = 4
 		self.uid = struct.unpack("i", streamStr[0:i])[0]
 		
@@ -52,14 +67,23 @@ class ComponentInfo( object ):
 		self.componentName = Define.COMPONENT_NAME[self.componentType]
 		ii += 4
 		
+		# cid
 		self.componentID = struct.unpack("Q", streamStr[ii : ii + 8])[0]
-		ii += 16
+		ii += 8
+
+		self.componentIDEx = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
 
 		self.globalOrderID = struct.unpack("i", streamStr[ii : ii + 4])[0]
 		ii += 4
 
 		self.groupOrderID = struct.unpack("i", streamStr[ii : ii + 4])[0]
 		ii += 4
+
+		if self.componentType in [Define.BASEAPP_TYPE, Define.CELLAPP_TYPE]:
+			self.fullname = "%s%s" % (self.componentName, self.groupOrderID)
+		else:
+			self.fullname = self.componentName
 
 		#self.intaddr = struct.unpack("I", streamStr[ii : ii + 4])[0]
 		self.intaddr = socket.inet_ntoa(streamStr[ii : ii + 4])
@@ -113,15 +137,160 @@ class ComponentInfo( object ):
 		
 		self.extradata = struct.unpack("Q", streamStr[ii : ii + 8])[0]
 		ii += 8
+		
+		if self.componentType in [Define.BASEAPP_TYPE, Define.CELLAPP_TYPE]:
+			self.entities = self.extradata
 
 		self.extradata1 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
 		ii += 8
 		
+		if self.componentType == Define.BASEAPP_TYPE:
+			self.clients = self.extradata1
+		
 		self.extradata2 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
 		ii += 8
+		
+		if self.componentType == Define.BASEAPP_TYPE:
+			self.proxies = self.extradata2
 
 		self.extradata3 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
 		ii += 8
+		
+		self.consolePort = self.extradata3
+		
+		self.backaddr = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		self.backport = struct.unpack("H", streamStr[ii : ii + 2])[0]
+		ii += 2
+	
+	def initFromStream( self, streamStr ):
+		"""
+		"""
+		self.entities = 0    # KBEngine.Entity或KBEngine.Base数量
+		self.clients = 0     # 客户端数量
+		self.proxies = 0     # KBEngine.Proxy实例数量
+		self.consolePort = 0 # 控制台端口
+		self.genuuid_sections = 0 # --gus
+		
+		i = 4
+		self.uid = struct.unpack("i", streamStr[0:i])[0]
+		
+		ii = i
+		for x in streamStr[i:]:
+			if type(x) == str:
+				if ord(x) == 0:
+					break
+			else:
+				if x == 0:
+					break
+
+			ii += 1
+
+		self.username = streamStr[i: ii];
+		if type(self.username) == 'bytes':
+			self.username = self.username.decode()
+                            
+		ii += 1
+
+		self.componentType = struct.unpack("i", streamStr[ii : ii + 4])[0]
+		self.componentName = Define.COMPONENT_NAME[self.componentType]
+		ii += 4
+		
+		# cid
+		self.componentID = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+
+		self.componentIDEx = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+
+		self.globalOrderID = struct.unpack("i", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		self.groupOrderID = struct.unpack("i", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		# gus, add in 20160504 version
+		self.genuuid_sections = struct.unpack("i", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		if self.componentType in [Define.BASEAPP_TYPE, Define.CELLAPP_TYPE]:
+			self.fullname = "%s%s" % (self.componentName, self.groupOrderID)
+		else:
+			self.fullname = self.componentName
+
+		#self.intaddr = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		self.intaddr = socket.inet_ntoa(streamStr[ii : ii + 4])
+		ii += 4
+
+		self.intport = struct.unpack(">H", streamStr[ii : ii + 2])[0]
+		ii += 2
+
+		#self.extaddr = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		self.extaddr = socket.inet_ntoa(streamStr[ii : ii + 4])
+		ii += 4
+
+		self.extport = struct.unpack(">H", streamStr[ii : ii + 2])[0]
+		ii += 2
+		
+		# get extaddrEx
+		i1 = ii
+		for x in streamStr[ii:]:
+			if type(x) == str:
+				if ord(x) == 0:
+					break
+			else:
+				if x == 0:
+					break
+
+			ii += 1
+
+		self.extaddrEx = streamStr[i1: ii];
+		if type(self.extaddrEx) == 'bytes':
+			self.extaddrEx = extaddrEx.decode()
+                            
+		ii += 1
+
+		self.pid = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		ii += 4
+		
+		self.cpu = struct.unpack("f", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		self.mem = struct.unpack("f", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		self.usedmem = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		ii += 4
+
+		self.state = struct.unpack("b", streamStr[ii : ii + 1])[0]
+		ii += 1
+		
+		self.machineID = struct.unpack("I", streamStr[ii : ii + 4])[0]
+		ii += 4
+		
+		self.extradata = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+		
+		if self.componentType in [Define.BASEAPP_TYPE, Define.CELLAPP_TYPE]:
+			self.entities = self.extradata
+
+		self.extradata1 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+		
+		if self.componentType == Define.BASEAPP_TYPE:
+			self.clients = self.extradata1
+		
+		self.extradata2 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+		
+		if self.componentType == Define.BASEAPP_TYPE:
+			self.proxies = self.extradata2
+
+		self.extradata3 = struct.unpack("Q", streamStr[ii : ii + 8])[0]
+		ii += 8
+		
+		self.consolePort = self.extradata3
 		
 		self.backaddr = struct.unpack("I", streamStr[ii : ii + 4])[0]
 		ii += 4
@@ -150,6 +319,12 @@ class Machines:
 		self.username = username
 		if type(self.username) is str:
 			self.username = username.encode( "utf-8" )
+		else:
+			try:
+				if type(self.username) is unicode:
+					self.username = username.encode( "utf-8" )
+			except:
+				pass
 		
 		self.startListen()
 		
@@ -178,12 +353,12 @@ class Machines:
 	def reset(self):
 		"""
 		"""
-		self.interfaces = {}
-		self.interfaces_groups = {}
-		self.interfaces_groups_uid = {}
+		self.interfaces = {}            # { componentType : [ComponentInfo, ...], ... }
+		self.interfaces_groups = {}     # { machineID : [ComponentInfo, ...], ...}
+		self.interfaces_groups_uid = {} # { machineID : [uid, ...], ...}
 		self.machines = []
 		
-	def send(self, msg, ip = "<broadcast>", trycount = 1, timeout = 1, callback = None):
+	def send(self, msg, ip = "<broadcast>"):
 		"""
 		发送消息
 		"""
@@ -200,13 +375,13 @@ class Machines:
 		"""
 		发送消息，并等待消息返回
 		"""
-		self.send(msg, ip, trycount, timeout, callback)
+		self.send(msg, ip)
 		
 		self.udp_socket.settimeout(timeout)
 		dectrycount = trycount
 		
 		recvDatas = []
-		while(dectrycount > 0):
+		while True:
 			try:
 				datas, address = self.udp_socket.recvfrom(10240)
 				recvDatas.append(datas)
@@ -229,6 +404,18 @@ class Machines:
 				traceback.print_exc()
 				break
 		return recvDatas
+
+	def receiveReply(self, timeout = 1):
+		"""
+		等待消息返回
+		"""
+		self.udp_socket.settimeout(timeout)
+		
+		try:
+			datas, address = self.udp_socket.recvfrom(10240)
+			return datas, address
+		except socket.timeout:
+			return "", ""
 
 	def queryAllInterfaces(self, ip = "<broadcast>", trycount = 1, timeout = 1):
 		"""
@@ -262,7 +449,7 @@ class Machines:
 		datas = self.sendAndReceive( msg.getvalue(), ip, trycount, timeout )
 		self.parseQueryDatas( datas )
 
-	def startServer(self, componentType, cid, gus, targetIP):
+	def startServer(self, componentType, cid, gus, targetIP, trycount = 1, timeout = 1):
 		"""
 		"""
 		msg = Define.BytesIO()
@@ -273,9 +460,14 @@ class Machines:
 		msg.write( struct.pack("=Q", cid) )
 		msg.write( struct.pack("=h", gus) )
 		msg.write( struct.pack("=H", socket.htons(self.replyPort)) ) # reply port
-		self.sendAndReceive( msg.getvalue(), targetIP )
 
-	def stopServer(self, componentType, targetIP = "<broadcast>"):
+		if trycount <= 0:
+			self.send( msg.getvalue(), targetIP )
+			self.receiveReply()
+		else:
+			self.sendAndReceive( msg.getvalue(), targetIP, trycount, timeout )
+
+	def stopServer(self, componentType, targetIP = "<broadcast>", trycount = 1, timeout = 1):
 		"""
 		"""
 		msg = Define.BytesIO()
@@ -284,7 +476,12 @@ class Machines:
 		msg.write( struct.pack("=i", self.uid) )
 		msg.write( struct.pack("=i", componentType) )
 		msg.write( struct.pack("=H", socket.htons(self.replyPort)) ) # reply port
-		self.sendAndReceive( msg.getvalue(), targetIP )
+
+		if trycount <= 0:
+			self.send( msg.getvalue(), targetIP )
+			self.receiveReply()
+		else:
+			self.sendAndReceive( msg.getvalue(), targetIP, trycount, timeout )
 
 	def parseQueryDatas( self, recvDatas ):
 		"""
@@ -363,6 +560,14 @@ class Machines:
 			if info.intaddr == ip:
 				return info
 		return None
+	
+	def hasMachine( self, ip ):
+		"""
+		"""
+		for info in self.machines:
+			if info.intaddr == ip:
+				return True
+		return False
 	
 	def getComponentInfos( self, componentType ):
 		"""
